@@ -19,4 +19,5 @@ if (typeof TextDecoder === 'undefined') {
 }
 
 // Ensure process is defined
-window.process = window.process || { env: {} };
+// Using 'as any' to avoid TypeScript errors since we're just providing minimal process properties
+window.process = window.process || { env: {} } as any;
