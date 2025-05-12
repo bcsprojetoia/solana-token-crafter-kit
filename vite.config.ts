@@ -26,6 +26,13 @@ export default defineConfig(({ mode }) => ({
     'process.env': {},
     'global': 'globalThis',
   },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      // Include buffer in the bundle
+      include: [/buffer/, /node_modules/],
+    },
+  },
   // Add the necessary polyfills for Solana
   optimizeDeps: {
     esbuildOptions: {
