@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Transaction } from '@solana/web3.js';
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
+import { PublicKey, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
+import * as token from '@solana/spl-token';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -35,89 +35,86 @@ const TokenCreator = () => {
 
     try {
       setIsLoading(true);
-
-      // Create a new token mint
-      const lamports = await connection.getMinimumBalanceForRentExemption(82);
       
-      const mint = await createMint(
-        connection,
-        {
+      // Create a new mint account
+      const mintAccount = Keypair.generate();
+      console.log("Mint public key:", mintAccount.publicKey.toString());
+      
+      // Calculate rent exemption for the mint
+      const mintRent = await connection.getMinimumBalanceForRentExemption(token.MINT_SIZE);
+      
+      // Create transaction for token creation
+      const createMintTransaction = new Transaction().add(
+        // Create account for the mint
+        SystemProgram.createAccount({
+          fromPubkey: publicKey,
+          newAccountPubkey: mintAccount.publicKey,
+          space: token.MINT_SIZE,
+          lamports: mintRent,
+          programId: token.TOKEN_PROGRAM_ID
+        }),
+        // Initialize the mint
+        token.createInitializeMintInstruction(
+          mintAccount.publicKey,
+          Number(decimals),
           publicKey,
-          // Use the wallet's signTransaction method directly
-          signTransaction: async (tx) => {
-            return await wallet.signTransaction(tx);
-          },
-          signAllTransactions: async (txs) => {
-            if (!wallet.signAllTransactions) {
-              throw new Error("Wallet does not support signing all transactions");
-            }
-            return await wallet.signAllTransactions(txs);
-          },
-          // For transactions that don't need to be signed
-          sendTransaction: async (tx, connection, options = {}) => {
-            return await sendTransaction(tx, connection, options);
-          },
-        },
-        publicKey,
-        publicKey,
-        Number(decimals)
-      );
-
-      console.log("Token mint created:", mint.toString());
-
-      // Get the token account of the wallet address, create it if it doesn't exist
-      const tokenAccount = await getOrCreateAssociatedTokenAccount(
-        connection,
-        {
           publicKey,
-          signTransaction: async (tx) => {
-            return await wallet.signTransaction(tx);
-          },
-          signAllTransactions: async (txs) => {
-            if (!wallet.signAllTransactions) {
-              throw new Error("Wallet does not support signing all transactions");
-            }
-            return await wallet.signAllTransactions(txs);
-          },
-          sendTransaction: async (tx, connection, options = {}) => {
-            return await sendTransaction(tx, connection, options);
-          },
-        },
-        mint,
-        publicKey
+          token.TOKEN_PROGRAM_ID
+        )
       );
-
-      console.log("Token account created:", tokenAccount.address.toString());
-
-      // Mint the new tokens
-      await mintTo(
-        connection,
-        {
-          publicKey,
-          signTransaction: async (tx) => {
-            return await wallet.signTransaction(tx);
-          },
-          signAllTransactions: async (txs) => {
-            if (!wallet.signAllTransactions) {
-              throw new Error("Wallet does not support signing all transactions");
-            }
-            return await wallet.signAllTransactions(txs);
-          },
-          sendTransaction: async (tx, connection, options = {}) => {
-            return await sendTransaction(tx, connection, options);
-          },
-        },
-        mint,
-        tokenAccount.address,
+      
+      // Sign transaction with wallet
+      const createMintTxSig = await sendTransaction(createMintTransaction, connection, {
+        signers: [mintAccount]
+      });
+      
+      console.log("Create mint transaction signature:", createMintTxSig);
+      
+      // Get or create associated token account for the user
+      const tokenAccountAddress = await token.getAssociatedTokenAddress(
+        mintAccount.publicKey,
         publicKey,
-        Number(initialSupply) * Math.pow(10, Number(decimals))
+        false,
+        token.TOKEN_PROGRAM_ID,
+        token.ASSOCIATED_TOKEN_PROGRAM_ID
       );
-
+      
+      // Create transaction to create the token account and mint tokens
+      const tokenTransaction = new Transaction();
+      
+      // Create the associated token account if it doesn't exist
+      tokenTransaction.add(
+        token.createAssociatedTokenAccountInstruction(
+          publicKey,
+          tokenAccountAddress,
+          publicKey,
+          mintAccount.publicKey,
+          token.TOKEN_PROGRAM_ID,
+          token.ASSOCIATED_TOKEN_PROGRAM_ID
+        )
+      );
+      
+      // Mint tokens to the user's account
+      tokenTransaction.add(
+        token.createMintToInstruction(
+          mintAccount.publicKey,
+          tokenAccountAddress,
+          publicKey,
+          BigInt(Number(initialSupply) * Math.pow(10, Number(decimals))),
+          [],
+          token.TOKEN_PROGRAM_ID
+        )
+      );
+      
+      // Send the transaction
+      const tokenTxSig = await sendTransaction(tokenTransaction, connection);
+      console.log("Mint token transaction signature:", tokenTxSig);
+      
       // Show success message and save the token mint address
-      setCreatedToken(mint.toString());
+      setCreatedToken(mintAccount.publicKey.toString());
       toast({
         title: "Token criado com sucesso!",
-        description: `Endereço do token: ${mint.toString()}`,
+        description: `Endereço do token: ${mintAccount.publicKey.toString()}`,
       });
 
     } catch (error) {
