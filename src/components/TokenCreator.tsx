@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo, getAccount } from '@solana/spl-token';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -12,7 +12,8 @@ import { useToast } from '@/components/ui/use-toast';
 
 const TokenCreator = () => {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction, signTransaction } = useWallet();
+  const wallet = useWallet();
+  const { publicKey, sendTransaction } = wallet;
   const { toast } = useToast();
 
   const [tokenName, setTokenName] = useState('');
@@ -23,7 +24,7 @@ const TokenCreator = () => {
   const [createdToken, setCreatedToken] = useState<string | null>(null);
 
   const createToken = async () => {
-    if (!publicKey || !signTransaction) {
+    if (!publicKey || !wallet.signTransaction) {
       toast({
         title: "Carteira não conectada",
         description: "Por favor, conecte sua carteira para criar um token.",
@@ -36,38 +37,76 @@ const TokenCreator = () => {
       setIsLoading(true);
 
       // Create a new token mint
+      const lamports = await connection.getMinimumBalanceForRentExemption(82);
+      
       const mint = await createMint(
         connection,
         {
           publicKey,
-          signTransaction,
-          sendTransaction,
-        } as any, // Type casting needed due to adapter interface mismatch
+          // Use the wallet's signTransaction method directly
+          signTransaction: async (tx) => {
+            return await wallet.signTransaction(tx);
+          },
+          signAllTransactions: async (txs) => {
+            if (!wallet.signAllTransactions) {
+              throw new Error("Wallet does not support signing all transactions");
+            }
+            return await wallet.signAllTransactions(txs);
+          },
+          // For transactions that don't need to be signed
+          sendTransaction: async (tx, connection, options = {}) => {
+            return await sendTransaction(tx, connection, options);
+          },
+        },
         publicKey,
         publicKey,
         Number(decimals)
       );
+
+      console.log("Token mint created:", mint.toString());
 
       // Get the token account of the wallet address, create it if it doesn't exist
       const tokenAccount = await getOrCreateAssociatedTokenAccount(
         connection,
         {
           publicKey,
-          signTransaction,
-          sendTransaction,
-        } as any,
+          signTransaction: async (tx) => {
+            return await wallet.signTransaction(tx);
+          },
+          signAllTransactions: async (txs) => {
+            if (!wallet.signAllTransactions) {
+              throw new Error("Wallet does not support signing all transactions");
+            }
+            return await wallet.signAllTransactions(txs);
+          },
+          sendTransaction: async (tx, connection, options = {}) => {
+            return await sendTransaction(tx, connection, options);
+          },
+        },
         mint,
         publicKey
       );
+
+      console.log("Token account created:", tokenAccount.address.toString());
 
       // Mint the new tokens
       await mintTo(
         connection,
         {
           publicKey,
-          signTransaction,
-          sendTransaction,
-        } as any,
+          signTransaction: async (tx) => {
+            return await wallet.signTransaction(tx);
+          },
+          signAllTransactions: async (txs) => {
+            if (!wallet.signAllTransactions) {
+              throw new Error("Wallet does not support signing all transactions");
+            }
+            return await wallet.signAllTransactions(txs);
+          },
+          sendTransaction: async (tx, connection, options = {}) => {
+            return await sendTransaction(tx, connection, options);
+          },
+        },
         mint,
         tokenAccount.address,
         publicKey,
