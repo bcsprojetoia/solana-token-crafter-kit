@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => ({
       // Include buffer in the bundle
       include: [/buffer/, /node_modules/],
     },
+    rollupOptions: {
+      // Make sure these are bundled
+      external: [],
+    },
   },
   // Add the necessary polyfills for Solana
   optimizeDeps: {
@@ -40,6 +44,6 @@ export default defineConfig(({ mode }) => ({
         global: 'globalThis',
       },
     },
-    include: ['buffer', '@solana/web3.js', '@solana/spl-token'] // Ensure these are pre-bundled
+    include: ['buffer', '@solana/web3.js', '@solana/spl-token'], // Ensure these are pre-bundled
   },
 }));

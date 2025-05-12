@@ -1,11 +1,22 @@
 
-// Import and set up necessary polyfills for Solana
+// Import Buffer from the buffer package
 import { Buffer } from 'buffer';
 
 // Make Buffer available globally
 window.Buffer = Buffer;
 
-// Ensure global is available
-if (typeof window !== 'undefined') {
-  window.global = window;
+// Ensure global is defined (needed for Solana web3.js)
+window.global = window;
+
+// Add TextEncoder polyfill if needed
+if (typeof TextEncoder === 'undefined') {
+  window.TextEncoder = TextEncoder;
 }
+
+// Add TextDecoder polyfill if needed
+if (typeof TextDecoder === 'undefined') {
+  window.TextDecoder = TextDecoder;
+}
+
+// Ensure process is defined
+window.process = window.process || { env: {} };
