@@ -18,12 +18,13 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "buffer": "buffer", // Explicitly map buffer
     },
   },
   define: {
     // This is required for Solana web3.js
     'process.env': {},
-    'global': {},
+    'global': 'globalThis',
   },
   // Add the necessary polyfills for Solana
   optimizeDeps: {
@@ -31,6 +32,7 @@ export default defineConfig(({ mode }) => ({
       define: {
         global: 'globalThis',
       },
-    }
+    },
+    include: ['buffer', '@solana/web3.js', '@solana/spl-token'] // Ensure these are pre-bundled
   },
 }));
