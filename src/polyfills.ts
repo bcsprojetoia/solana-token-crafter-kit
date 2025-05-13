@@ -19,5 +19,9 @@ if (typeof TextDecoder === 'undefined') {
 }
 
 // Ensure process is defined
-// Using 'as any' to avoid TypeScript errors since we're just providing minimal process properties
 window.process = window.process || { env: {} } as any;
+
+// Fix for missing crypto in some environments
+if (window.crypto === undefined) {
+  window.crypto = {} as Crypto;
+}

@@ -44,6 +44,14 @@ export default defineConfig(({ mode }) => ({
         global: 'globalThis',
       },
     },
-    include: ['buffer', '@solana/web3.js', '@solana/spl-token'], // Ensure these are pre-bundled
+    include: [
+      'buffer', 
+      '@solana/web3.js', 
+      '@solana/spl-token',
+      '@solana/wallet-adapter-base',
+      '@solana/wallet-adapter-react',
+      '@solana/wallet-adapter-react-ui',
+      '@solana/wallet-adapter-wallets'
+    ],
   },
 }));
