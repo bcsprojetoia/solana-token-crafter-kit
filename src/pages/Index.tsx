@@ -16,8 +16,10 @@ const Index = () => {
           </p>
         </header>
         
-        <TokenCreator />
-        <SolanaTokenInfo />
+        <div className="space-y-8">
+          <TokenCreator />
+          <SolanaTokenInfo />
+        </div>
         
         <footer className="text-center mt-12 text-gray-500 text-sm">
           <p>Este aplicativo interage com a rede de teste (Devnet) da Solana.</p>
