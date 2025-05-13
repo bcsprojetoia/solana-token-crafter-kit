@@ -2,8 +2,12 @@
 import React, { useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
+import { PublicKey, Transaction, SystemProgram, Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
 import * as token from '@solana/spl-token';
+import { 
+  createCreateMetadataAccountV3Instruction,
+  PROGRAM_ID as METADATA_PROGRAM_ID
+} from '@metaplex-foundation/mpl-token-metadata';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -28,6 +32,15 @@ const TokenCreator = () => {
       toast({
         title: "Carteira não conectada",
         description: "Por favor, conecte sua carteira para criar um token.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!tokenName || !tokenSymbol) {
+      toast({
+        title: "Informações incompletas",
+        description: "Por favor, preencha o nome e o símbolo do token.",
         variant: "destructive"
       });
       return;
@@ -70,6 +83,9 @@ const TokenCreator = () => {
       
       console.log("Create mint transaction signature:", createMintTxSig);
       
+      // Wait for confirmation to ensure mint account is ready for metadata
+      await connection.confirmTransaction(createMintTxSig);
+      
       // Get or create associated token account for the user
       const tokenAccountAddress = await token.getAssociatedTokenAddress(
         mintAccount.publicKey,
@@ -106,15 +122,67 @@ const TokenCreator = () => {
         )
       );
       
-      // Send the transaction
+      // Send the token transaction
       const tokenTxSig = await sendTransaction(tokenTransaction, connection);
       console.log("Mint token transaction signature:", tokenTxSig);
+      
+      // Wait for confirmation to ensure token is minted
+      await connection.confirmTransaction(tokenTxSig);
+      
+      // Now, create token metadata
+      // Calculate PDA for metadata account
+      const [metadataPDA] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("metadata"),
+          METADATA_PROGRAM_ID.toBuffer(),
+          mintAccount.publicKey.toBuffer(),
+        ],
+        METADATA_PROGRAM_ID
+      );
+      
+      // Create transaction for metadata
+      const metadataTransaction = new Transaction();
+      
+      // Add the instruction to create metadata
+      metadataTransaction.add(
+        createCreateMetadataAccountV3Instruction(
+          {
+            metadata: metadataPDA,
+            mint: mintAccount.publicKey,
+            mintAuthority: publicKey,
+            payer: publicKey,
+            updateAuthority: publicKey,
+          },
+          {
+            createMetadataAccountArgsV3: {
+              data: {
+                name: tokenName,
+                symbol: tokenSymbol,
+                uri: "",
+                sellerFeeBasisPoints: 0,
+                creators: null,
+                collection: null,
+                uses: null,
+              },
+              isMutable: true,
+              collectionDetails: null,
+            },
+          }
+        )
+      );
+
+      // Send the metadata transaction
+      const metadataTxSig = await sendTransaction(metadataTransaction, connection);
+      console.log("Create metadata transaction signature:", metadataTxSig);
+      
+      // Wait for confirmation
+      await connection.confirmTransaction(metadataTxSig);
       
       // Show success message and save the token mint address
       setCreatedToken(mintAccount.publicKey.toString());
       toast({
         title: "Token criado com sucesso!",
-        description: `Endereço do token: ${mintAccount.publicKey.toString()}`,
+        description: `Token "${tokenName}" (${tokenSymbol}) criado. Endereço: ${mintAccount.publicKey.toString()}`,
       });
 
     } catch (error) {
@@ -150,6 +218,7 @@ const TokenCreator = () => {
                 value={tokenName}
                 onChange={(e) => setTokenName(e.target.value)}
                 className="border-gray-700 bg-gray-800 text-white"
+                required
               />
             </div>
             <div className="space-y-2">
@@ -160,6 +229,7 @@ const TokenCreator = () => {
                 value={tokenSymbol}
                 onChange={(e) => setTokenSymbol(e.target.value)}
                 className="border-gray-700 bg-gray-800 text-white"
+                required
               />
             </div>
             <div className="space-y-2">
@@ -192,7 +262,8 @@ const TokenCreator = () => {
             <p className="text-sm text-gray-300">Token criado:</p>
             <p className="font-mono text-green-400">{createdToken}</p>
             <p className="text-xs text-gray-400 mt-2">
-              Para visualizar na Solflare, use o botão "Add Token" na sua carteira e cole este endereço.
+              Para visualizar na Solflare, use o botão "Add Token" na sua carteira e cole este endereço. 
+              O token agora deve aparecer com nome {tokenName} ({tokenSymbol}).
             </p>
           </div>
         )}
