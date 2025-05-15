@@ -1,5 +1,5 @@
 
-import React, { ReactNode, useMemo } from 'react';
+import React, { ReactNode, useMemo, useState, useEffect } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
@@ -14,7 +14,9 @@ interface SolanaProviderProps {
 }
 
 export const SolanaProvider: React.FC<SolanaProviderProps> = ({ children }) => {
-  // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'
+  const [isReady, setIsReady] = useState(false);
+
+  // The network is explicitly set to 'devnet'
   const network = WalletAdapterNetwork.Devnet;
 
   // You can also provide a custom RPC endpoint
@@ -27,6 +29,30 @@ export const SolanaProvider: React.FC<SolanaProviderProps> = ({ children }) => {
     ],
     [network]
   );
+
+  // Check if required global objects are available
+  useEffect(() => {
+    const checkDependencies = () => {
+      try {
+        if (window.Buffer && window.crypto) {
+          console.log("Solana provider: dependências disponíveis");
+          setIsReady(true);
+        } else {
+          console.error("Solana provider: dependências faltando");
+          setTimeout(checkDependencies, 100);  // Try again after a short delay
+        }
+      } catch (e) {
+        console.error("Erro ao verificar dependências Solana:", e);
+        setTimeout(checkDependencies, 100);
+      }
+    };
+    
+    checkDependencies();
+  }, []);
+
+  if (!isReady) {
+    return <div className="text-center p-4">Carregando provedores Solana...</div>;
+  }
 
   return (
     <ConnectionProvider endpoint={endpoint}>
